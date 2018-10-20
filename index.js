@@ -24,6 +24,7 @@ var multicastPort =  config.xiaomi.multicastPort || 4321;
 var password = config.xiaomi.password || "";
 var level = config.loglevel || "info";
 var heartbeatfreq = config.heartbeatfreq || 1;
+var dataFormat = config.dataFormat || "parsed"
 global.hb_count = heartbeatfreq;
 
 Utils.setlogPrefix(log);
@@ -57,7 +58,7 @@ server.on('listening', function() {
 
 server.on('message', function(buffer, rinfo) {
   var msg;
-  
+
   try {
     msg = JSON.parse(buffer);
     log.trace("msg "+JSON.stringify(msg));
@@ -94,20 +95,28 @@ server.on('message', function(buffer, rinfo) {
       var data = JSON.parse(msg.data);
       switch (msg.model) {
         case "sensor_ht":
-          var temperature = data.temperature ? Math.round(data.temperature / 10.0) / 10 : null;
-          var humidity = data.humidity ? Math.round(data.humidity / 10.0) / 10: null;
-          payload = {"cmd":msg.cmd ,"model":msg.model, "sid":msg.sid, "short_id":msg.short_id, "data": {"voltage": data.voltage, "temperature":temperature, "humidity":humidity}};
-          log.debug(JSON.stringify(payload));  
-          break;
-        case "gateway":
-        case "sensor_motion.aq2":
-        case "magnet":
-        case "switch":
-        case "86sw2":
-        case "cube":
+          if (dataFormat === "parsed") {
+            data.temperature = data.temperature ? Math.round(data.temperature / 10.0) / 10 : null;
+            data.humidity = data.humidity ? Math.round(data.humidity / 10.0) / 10: null;
+          }
           payload = {"cmd":msg.cmd ,"model":msg.model, "sid":msg.sid, "short_id":msg.short_id, "data": data};
           log.debug(JSON.stringify(payload));
-          break;       
+          break;
+        case "gateway":
+        case "motion":
+        case "sensor_motion.aq2":
+        case "sensor_wleak.aq1":
+        case "magnet":
+        case "switch":
+        case "86sw1":
+        case "86sw2":
+        case "cube":
+        case "ctrl_neutral1":
+        case "ctrl_neutral2":
+        case "ctrl_ln1.aq1":
+          payload = {"cmd":msg.cmd ,"model":msg.model, "sid":msg.sid, "short_id":msg.short_id, "data": data};
+          log.debug(JSON.stringify(payload));
+          break;
         default:
           payload = {"cmd":msg.cmd ,"model":msg.model, "sid":msg.sid, "short_id":msg.short_id, "data": data};
           log.debug("untested "+JSON.stringify(payload));
@@ -118,7 +127,7 @@ server.on('message', function(buffer, rinfo) {
       var data = JSON.parse(msg.data);
       payload = {"cmd":msg.cmd ,"model":msg.model, "sid":msg.sid, "short_id":msg.short_id, "data": data};
       log.debug(JSON.stringify(payload));
-      mqtt.publish(payload); 
+      mqtt.publish(payload);
       break;
     case "heartbeat":
       var data = JSON.parse(msg.data);
@@ -212,11 +221,11 @@ function write(mqtt_payload) {
       }
       msg = JSON.stringify(payload);
       log.debug(msg);
-      server.send(msg, 0, msg.length, sidPort[sid], sidAddress[sid]);   
+      server.send(msg, 0, msg.length, sidPort[sid], sidAddress[sid]);
     } else {
       payload = {"cmd":"xm","msg":"gateway token unknown."};
       log.warn(JSON.stringify(payload));
-      mqtt.publish(payload);      
+      mqtt.publish(payload);
     }
   } else {
     payload = {"cmd":"xm","msg":"sid >"+sid+"< unknown."};
